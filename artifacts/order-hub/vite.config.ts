@@ -18,11 +18,11 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
+const basePath = process.env.BASE_PATH ?? "/";
 
-if (!basePath) {
+if (typeof basePath !== "string" || !basePath.startsWith("/")) {
   throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
+    "BASE_PATH environment variable must be a string starting with '/'.",
   );
 }
 

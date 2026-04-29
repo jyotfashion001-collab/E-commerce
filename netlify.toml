@@ -1,0 +1,6 @@
+[build]
+  command = "pnpm --filter @workspace/order-hub run build"
+  publish = "artifacts/order-hub/dist/public"
+
+[build.environment]
+  BASE_PATH = "/"
