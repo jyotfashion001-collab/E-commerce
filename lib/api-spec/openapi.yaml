@@ -1,0 +1,1459 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Order Hub API — multi-platform inventory and order management
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: me
+  - name: dashboard
+  - name: orders
+  - name: inventory
+  - name: upload
+  - name: users
+  - name: companies
+  - name: purchases
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get current authenticated user with role
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Aggregated KPIs and platform breakdown
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/revenue:
+    get:
+      operationId: getDashboardRevenue
+      tags: [dashboard]
+      summary: Daily revenue series for the last N days
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 90
+            default: 30
+      responses:
+        "200":
+          description: Revenue series
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyRevenuePoint"
+
+  /dashboard/recent-orders:
+    get:
+      operationId: getRecentOrders
+      tags: [dashboard]
+      summary: Most recent orders for the activity panel
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 6
+      responses:
+        "200":
+          description: Recent orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /dashboard/all-companies:
+    get:
+      operationId: getAllCompaniesSummary
+      tags: [dashboard]
+      summary: Per-company totals across every company (no X-Brand required)
+      responses:
+        "200":
+          description: All-companies overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllCompaniesSummary"
+
+  /purchases/product-names:
+    get:
+      operationId: listPurchaseProductNames
+      tags: [purchases]
+      summary: Distinct product names used across past purchases (for autocomplete)
+      parameters:
+        - in: query
+          name: search
+          description: Case-insensitive substring filter on product name
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Suggested product names sorted by most recently used
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [productName]
+                      properties:
+                        productName:
+                          type: string
+                        lastUsed:
+                          type: string
+                          nullable: true
+                          format: date-time
+
+  /purchases:
+    get:
+      operationId: listPurchases
+      tags: [purchases]
+      summary: Paginated list of manually-recorded purchases (active company or all)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 25
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [purchaseDate, total, quantity, rate, productName]
+            default: purchaseDate
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - in: query
+          name: purchaseDateFrom
+          description: Inclusive lower bound for purchaseDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: purchaseDateTo
+          description: Inclusive upper bound for purchaseDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: allCompanies
+          description: When true, returns purchases across every company instead of just the active brand
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Purchase list with totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseList"
+    post:
+      operationId: createPurchase
+      tags: [purchases]
+      summary: Record a new purchase entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /purchases/{id}:
+    put:
+      operationId: updatePurchase
+      tags: [purchases]
+      summary: Update a purchase entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseInput"
+      responses:
+        "200":
+          description: Updated purchase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePurchase
+      tags: [purchases]
+      summary: Delete a purchase entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies:
+    get:
+      operationId: listCompanies
+      tags: [companies]
+      summary: List all companies (brands)
+      responses:
+        "200":
+          description: Companies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+    post:
+      operationId: createCompany
+      tags: [companies]
+      summary: Create a new company (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (slug already exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /companies/{slug}:
+    delete:
+      operationId: deleteCompany
+      tags: [companies]
+      summary: Delete a company (admin only). Fails if it still has data.
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Cannot delete (last company or has associated data)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /dashboard/top-skus:
+    get:
+      operationId: getTopSkus
+      tags: [dashboard]
+      summary: Top SKUs by revenue
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: Top SKUs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopSku"
+
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: Paginated list of orders
+      parameters:
+        - in: query
+          name: platform
+          schema:
+            type: string
+            enum: [meesho, flipkart, amazon, all]
+            default: all
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [orderDate, price, quantity, productName]
+            default: orderDate
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - in: query
+          name: orderDateFrom
+          description: Inclusive lower bound for orderDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: orderDateTo
+          description: Inclusive upper bound for orderDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Orders page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPage"
+
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{id}:
+    patch:
+      operationId: updateOrder
+      tags: [orders]
+      summary: Update an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteOrder
+      tags: [orders]
+      summary: Delete an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/bulk-delete:
+    post:
+      operationId: bulkDeleteOrders
+      tags: [orders]
+      summary: Delete multiple orders by id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDeletePayload"
+      responses:
+        "200":
+          description: Bulk delete result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkDeleteResult"
+
+  /inventory:
+    get:
+      operationId: listInventory
+      tags: [inventory]
+      summary: Paginated inventory list
+      parameters:
+        - in: query
+          name: platform
+          schema:
+            type: string
+            enum: [meesho, flipkart, amazon, all]
+            default: all
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [productName, sku, quantity, price, purchaseDate]
+            default: purchaseDate
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 100
+            default: 20
+        - in: query
+          name: purchaseDateFrom
+          description: Inclusive lower bound for purchaseDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: purchaseDateTo
+          description: Inclusive upper bound for purchaseDate (ISO 8601 date or datetime)
+          schema:
+            type: string
+        - in: query
+          name: allCompanies
+          description: When true, returns inventory across every company instead of just the active brand
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Inventory page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryPage"
+
+    post:
+      operationId: createInventoryItem
+      tags: [inventory]
+      summary: Create a new inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+
+  /inventory/{id}:
+    get:
+      operationId: getInventoryItem
+      tags: [inventory]
+      summary: Get a single inventory item by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Inventory item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateInventoryItem
+      tags: [inventory]
+      summary: Update inventory quantity / price / product name
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteInventoryItem
+      tags: [inventory]
+      summary: Delete an inventory item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /inventory/bulk-delete:
+    post:
+      operationId: bulkDeleteInventory
+      tags: [inventory]
+      summary: Delete multiple inventory items by id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDeletePayload"
+      responses:
+        "200":
+          description: Bulk delete result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkDeleteResult"
+
+  /upload/orders:
+    post:
+      operationId: importOrders
+      tags: [upload]
+      summary: Bulk import parsed order rows from an Excel/CSV upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportOrdersPayload"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppUser"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    patch:
+      operationId: updateUserRole
+      tags: [users]
+      summary: Update a user's role (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRolePayload"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppUser"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Remove a user from the workspace (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    Platform:
+      type: string
+      enum: [meesho, flipkart, amazon]
+
+    Brand:
+      type: string
+      description: |
+        Active brand workspace identifier (a company `slug`). Sent on every
+        authenticated request via the `X-Brand` header. Companies are managed
+        dynamically via the `/companies` endpoints.
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          $ref: "#/components/schemas/Brand"
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, slug, name, createdAt]
+
+    CompanyInput:
+      type: object
+      properties:
+        slug:
+          type: string
+          description: URL-safe identifier (1-32 chars, lowercase a-z 0-9 and dashes).
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required: [slug, name]
+
+    CompanySummary:
+      type: object
+      properties:
+        slug:
+          $ref: "#/components/schemas/Brand"
+        name:
+          type: string
+        totalOrders:
+          type: integer
+        totalRevenue:
+          type: number
+        totalUnits:
+          type: integer
+        inventoryUnits:
+          type: integer
+        distinctSkus:
+          type: integer
+      required:
+        [slug, name, totalOrders, totalRevenue, totalUnits, inventoryUnits, distinctSkus]
+
+    AllCompaniesSummary:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanySummary"
+        totals:
+          type: object
+          properties:
+            totalOrders:
+              type: integer
+            totalRevenue:
+              type: number
+            totalUnits:
+              type: integer
+            inventoryUnits:
+              type: integer
+          required: [totalOrders, totalRevenue, totalUnits, inventoryUnits]
+      required: [items, totals]
+
+    Role:
+      type: string
+      enum: [admin, staff]
+
+    Me:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          $ref: "#/components/schemas/Role"
+      required: [id, clerkUserId, email, role]
+
+    AppUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          $ref: "#/components/schemas/Role"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, clerkUserId, email, role, createdAt]
+
+    UpdateUserRolePayload:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+      required: [role]
+
+    PlatformBreakdown:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        orders:
+          type: integer
+        revenue:
+          type: number
+        units:
+          type: integer
+      required: [platform, orders, revenue, units]
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalOrders:
+          type: integer
+        totalRevenue:
+          type: number
+        totalMrp:
+          type: number
+        totalAmount:
+          type: number
+        totalUnits:
+          type: integer
+        distinctProducts:
+          type: integer
+        inventoryUnits:
+          type: integer
+        distinctSkus:
+          type: integer
+        platforms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformBreakdown"
+      required: [totalOrders, totalRevenue, totalMrp, totalAmount, totalUnits, distinctProducts, inventoryUnits, distinctSkus, platforms]
+
+    DailyRevenuePoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        revenue:
+          type: number
+        orders:
+          type: integer
+      required: [date, revenue, orders]
+
+    TopSku:
+      type: object
+      properties:
+        sku:
+          type: string
+        productName:
+          type: string
+        platform:
+          $ref: "#/components/schemas/Platform"
+        units:
+          type: integer
+        revenue:
+          type: number
+      required: [sku, productName, platform, units, revenue]
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        brand:
+          $ref: "#/components/schemas/Brand"
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+          description: Unit price
+        orderDate:
+          type: string
+          format: date-time
+        subOrderNo:
+          type: ["string", "null"]
+          description: Marketplace sub order number (e.g. Meesho Sub Order No)
+        orderSource:
+          type: ["string", "null"]
+          description: Marketplace order source (e.g. "Ad order")
+        reasonForCredit:
+          type: ["string", "null"]
+          description: Order status / Reason for Credit Entry (e.g. DELIVERED, SHIPPED, CANCELLED, RTO_LOCKED)
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, brand, platform, productName, sku, quantity, price, orderDate, createdAt]
+
+    OrderInput:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        orderDate:
+          type: string
+          format: date-time
+      required: [platform, productName, sku, quantity, price, orderDate]
+
+    OrderUpdate:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        orderDate:
+          type: string
+          format: date-time
+
+    OrderPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required: [items, total, page, pageSize, totalPages]
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        brand:
+          $ref: "#/components/schemas/Brand"
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+        originalPrice:
+          type: ["number", "null"]
+        gstPercent:
+          type: ["number", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        imageUrls:
+          type: array
+          items:
+            type: string
+        purchaseDate:
+          type: ["string", "null"]
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, brand, platform, productName, sku, quantity, price, updatedAt]
+
+    InventoryInput:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 0
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: number
+          minimum: 0
+        gstPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        imageUrl:
+          type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        purchaseDate:
+          type: string
+          format: date-time
+      required: [platform, productName, sku, quantity, price]
+
+    InventoryUpdate:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 0
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: number
+          minimum: 0
+        gstPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        imageUrl:
+          type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        purchaseDate:
+          type: string
+          format: date-time
+
+    BulkDeletePayload:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+      required: [ids]
+
+    BulkDeleteResult:
+      type: object
+      properties:
+        deleted:
+          type: integer
+      required: [deleted]
+
+    InventoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+        totalCost:
+          type: number
+        totalUnits:
+          type: integer
+      required: [items, total, page, pageSize, totalPages, totalCost, totalUnits]
+
+    ImportOrderRow:
+      type: object
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        orderDate:
+          type: string
+          format: date-time
+        subOrderNo:
+          type: string
+        orderSource:
+          type: string
+        reasonForCredit:
+          type: string
+      required: [platform, productName, sku, quantity, price, orderDate]
+
+    ImportOrdersPayload:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportOrderRow"
+      required: [rows]
+
+    ImportResult:
+      type: object
+      properties:
+        inserted:
+          type: integer
+        updated:
+          type: integer
+        skipped:
+          type: integer
+        cancelled:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required: [inserted, updated, skipped, cancelled, errors]
+
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+        brand:
+          $ref: "#/components/schemas/Brand"
+        productName:
+          type: string
+        sku:
+          type: string
+        quantity:
+          type: integer
+        rate:
+          type: number
+          description: Per-unit purchase rate
+        total:
+          type: number
+          description: rate * quantity
+        vendor:
+          type: ["string", "null"]
+        partyName:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        purchaseDate:
+          type: string
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        amazonSku:
+          type: ["string", "null"]
+        amazonSellingPrice:
+          type: ["number", "null"]
+        amazonGstRate:
+          type: ["number", "null"]
+          description: GST rate (%) for Amazon
+        flipkartSku:
+          type: ["string", "null"]
+        flipkartSellingPrice:
+          type: ["number", "null"]
+        flipkartGstRate:
+          type: ["number", "null"]
+          description: GST rate (%) for Flipkart
+        meeshoSku:
+          type: ["string", "null"]
+        meeshoSellingPrice:
+          type: ["number", "null"]
+        meeshoGstRate:
+          type: ["number", "null"]
+          description: GST rate (%) for Meesho
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, brand, productName, sku, quantity, rate, total, vendor, partyName, category, purchaseDate, notes, imageUrl, amazonSku, amazonSellingPrice, amazonGstRate, flipkartSku, flipkartSellingPrice, flipkartGstRate, meeshoSku, meeshoSellingPrice, meeshoGstRate, createdAt]
+
+    PurchaseInput:
+      type: object
+      properties:
+        productName:
+          type: string
+          minLength: 1
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+        rate:
+          type: number
+          minimum: 0
+        vendor:
+          type: string
+        purchaseDate:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        imageUrl:
+          type: string
+        partyName:
+          type: string
+        category:
+          type: string
+        amazonSku:
+          type: string
+        amazonSellingPrice:
+          type: number
+          minimum: 0
+        amazonGstRate:
+          type: number
+          minimum: 0
+          maximum: 100
+        flipkartSku:
+          type: string
+        flipkartSellingPrice:
+          type: number
+          minimum: 0
+        flipkartGstRate:
+          type: number
+          minimum: 0
+          maximum: 100
+        meeshoSku:
+          type: string
+        meeshoSellingPrice:
+          type: number
+          minimum: 0
+        meeshoGstRate:
+          type: number
+          minimum: 0
+          maximum: 100
+      required: [productName, sku, quantity, rate, purchaseDate]
+
+    PurchaseTotals:
+      type: object
+      properties:
+        totalCost:
+          type: number
+        totalUnits:
+          type: integer
+        totalEntries:
+          type: integer
+      required: [totalCost, totalUnits, totalEntries]
+
+    PurchaseList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Purchase"
+        totals:
+          $ref: "#/components/schemas/PurchaseTotals"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required: [items, totals, page, pageSize, total, totalPages]
