@@ -51,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useBrand } from "@/lib/use-brand";
 import { ProductNameAutocomplete } from "@/components/product-name-autocomplete";
 import { formatINR } from "@/lib/utils";
+import { apiBase } from "@/lib/api";
 import type { Purchase } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
 import {
@@ -294,7 +295,7 @@ export default function ProductPurchase() {
     const blob = await fileToResizedBlob(file);
     const fd = new FormData();
     fd.append("file", blob, "photo.jpg");
-    const res = await fetch("/api/uploads/inventory-image", {
+    const res = await fetch(`${apiBase}/uploads/inventory-image`, {
       method: "POST",
       body: fd,
       credentials: "include",

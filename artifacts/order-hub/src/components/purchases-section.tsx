@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import type { Purchase } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiBase } from "@/lib/api";
 import { format, parseISO } from "date-fns";
 import {
   Card,
@@ -111,7 +112,7 @@ export function PurchasesSection() {
     const blob = await fileToResizedBlob(file);
     const fd = new FormData();
     fd.append("file", blob, "photo.jpg");
-    const res = await fetch("/api/uploads/inventory-image", {
+    const res = await fetch(`${apiBase}/uploads/inventory-image`, {
       method: "POST",
       body: fd,
       credentials: "include",

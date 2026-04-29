@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { apiBase } from "./api";
 
 export interface AuthUser {
   id: number;
@@ -64,9 +65,6 @@ interface AuthResponse {
   token: string;
   user: AuthUser;
 }
-
-const basePath = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-const apiBase = `${basePath}/api`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => readToken());
