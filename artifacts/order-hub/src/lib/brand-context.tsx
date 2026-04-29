@@ -80,7 +80,7 @@ export function BrandProvider({ children }: { children: ReactNode }) {
   const { data: fetchedCompanies, isLoading: loadingCompanies } = useListCompanies();
 
   const companies = useMemo<BrandSummary[]>(() => {
-    if (fetchedCompanies && fetchedCompanies.length > 0) {
+    if (Array.isArray(fetchedCompanies) && fetchedCompanies.length > 0) {
       return fetchedCompanies.map((c) => ({ slug: c.slug, name: c.name }));
     }
     return DEFAULT_COMPANIES.slice();
