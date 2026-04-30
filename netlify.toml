@@ -4,3 +4,5 @@
 
 [build.environment]
   BASE_PATH = "/"
+  # Set VITE_API_BASE to your backend URL in Netlify site settings or build environment.
+  # Example: VITE_API_BASE = "https://jyotfashion.netlify.app/"

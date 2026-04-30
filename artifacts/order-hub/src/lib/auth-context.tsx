@@ -50,12 +50,21 @@ async function postJson<T>(url: string, body: unknown, token?: string | null): P
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  const data = text ? (JSON.parse(text) as unknown) : null;
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text) as unknown;
+    } catch {
+      data = text;
+    }
+  }
   if (!res.ok) {
     const message =
       (data && typeof data === "object" && "error" in data && typeof (data as { error?: unknown }).error === "string"
         ? (data as { error: string }).error
-        : null) || `Request failed (${res.status})`;
+        : typeof data === "string"
+        ? data
+        : `Request failed (${res.status})`);
     throw new Error(message);
   }
   return data as T;
